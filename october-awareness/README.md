@@ -2,7 +2,7 @@
 
 `october_awareness_1080x1350.mp4` is 1080×1350 (4:5, made for Instagram/Facebook feed), 60 fps, 10 s, H.264 + AAC.
 
-Everything comes from the original poster pixels (`source/src.png`). The ribbon, hands, logo and text
+Everything comes from the original poster pixels (`source/src.png`). The ribbon uses the clean cut-out `source/ribbon_cut.png`, registered to the poster at scale 1.0, offset (0, 12).
 are separated from the flat image, so the last frame is the poster itself.
 
 ## Motion

@@ -163,7 +163,7 @@ Image.fromarray(hands[hb_box[1]:, hb_box[0]:], 'RGBA').save('layers/hands.png')
 meta['hands'] = hb_box
 meta['path_len'] = float(arcs[-1])
 json.dump(meta, open('layers/meta.json', 'w'))
-np.save('layers/arc.npy', arc.astype(np.float32)); np.save('layers/edge.npy', edge.astype(np.float32))
+np.save('layers/arc.npy', arc.astype(np.float32)); np.save('layers/path.npy', np.column_stack([D, arcs]).astype(np.float32)); np.save('layers/edge.npy', edge.astype(np.float32))
 Image.fromarray(np.clip(clean, 0, 255).astype(np.uint8)).save('layers/clean.png')
 Image.fromarray(np.clip(plate, 0, 255).astype(np.uint8)).save('layers/plate.png')
 # debug: path overlay

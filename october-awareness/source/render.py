@@ -26,9 +26,45 @@ PATH_LEN = M['path_len']
 # ribbon matte (for the light that travels through the satin): where the ribbon makes the image
 # more saturated / brighter than the empty plate
 def sat(x): mx, mn = x.max(2), x.min(2); return (mx - mn) / (mx + 1e-4)
-rib = np.clip((sat(clean) - sat(plate) + (clean.mean(2) - plate.mean(2)) * 0.8 - 0.015) / 0.06, 0, 1)
-rib = cv2.GaussianBlur(rib, (0, 0), 1.5) * np.isfinite(arc)
-arc_f = np.where(np.isfinite(arc), arc, 1e9).astype(np.float32)
+# the supplied clean ribbon cut-out, registered to the poster (scale 1.0, offset 0,12 — found by template match)
+RIB = np.zeros((H, W, 4), np.float32)
+_rc = f32('ribbon_cut.png'); RX, RY = 0, 12
+RIB[RY:RY + _rc.shape[0], RX:RX + _rc.shape[1]] = _rc[:H - RY, :W - RX]
+ribA = RIB[..., 3]
+_rp = cv2.GaussianBlur(cv2.dilate((ribA > 0.02).astype(np.float32), np.ones((15, 15), np.uint8)), (0, 0), 4)
+rib = ribA
+from scipy import ndimage
+# feather the filled plate back into the real background near the fill boundary (no visible seams)
+_zone = np.isfinite(arc)
+_w = np.clip(ndimage.distance_transform_edt(_zone) / 60.0, 0, 1).astype(np.float32)
+_w = _w * _w * (3 - 2 * _w)
+_w = np.maximum(_w, _rp)
+plate = clean - (clean - plate) * _w[..., None]
+_inf = ~np.isfinite(arc)
+_, (iy, ix) = ndimage.distance_transform_edt(_inf, return_indices=True)
+arc_f = np.where(_inf, arc[iy, ix], arc).astype(np.float32)          # every ribbon pixel gets a reveal time
+arc_f = np.where(np.isfinite(arc_f), arc_f, 1e9).astype(np.float32)
+
+# ribbon reveal timing from strand ownership: the front band (traced outline) owns its pixels; everything
+# else on the ribbon follows the loop / under-strand / tail part of the path. Keeps the crossing clean.
+from scipy.spatial import cKDTree
+PD = np.load(L + 'path.npy'); PXY, PARC = PD[:, :2], PD[:, 3]
+BAND = np.array([(-8, 562), (200, 502), (400, 422), (600, 347), (800, 282), (875, 252), (866, 330), (824, 422),
+                 (762, 498), (700, 539), (600, 594), (400, 659), (300, 699), (200, 724), (100, 754), (0, 779), (-8, 779)], np.int32)
+band = np.zeros((H, W), np.uint8); cv2.fillPoly(band, [BAND], 1); band = band.astype(bool)
+iA1 = int(np.argmin(np.hypot(PXY[:, 0] - 800, PXY[:, 1] - 350)))
+yy, xx = np.nonzero(ribA > 0)
+pts = np.column_stack([xx, yy]).astype(np.float32)
+inb = band[yy, xx]
+arc_r = np.full((H, W), 1e9, np.float32)
+_, i1 = cKDTree(PXY[:iA1 + 1]).query(pts[inb]); arc_r[yy[inb], xx[inb]] = PARC[i1]
+_, i2 = cKDTree(PXY[iA1:]).query(pts[~inb]); arc_r[yy[~inb], xx[~inb]] = PARC[iA1 + i2]
+arc_r = cv2.GaussianBlur(arc_r * (ribA > 0) + arc_f * (ribA <= 0), (0, 0), 3.0)   # soften Voronoi seams
+# shadow timing: follow the ribbon's own timing where possible, then blur hard so cast shadows bloom smoothly
+_ar = np.where(ribA > 0.5, arc_r, 0).astype(np.float32)
+_near = ndimage.grey_dilation(_ar, size=(61, 61))                       # latest ribbon time nearby
+_sh = np.minimum(np.where(ribA > 0.5, arc_r, np.maximum(arc_f, _near)), PATH_LEN + 400).astype(np.float32)
+arc_s = cv2.GaussianBlur(_sh, (0, 0), 40.0)
 
 hands = f32(L + 'hands.png'); HX, HY = M['hands'][:2]
 TXT = {k: f32(L + f't_{k}.png') for k in ['logo', 'october', 'awareness', 'month', 'rule', 'care', 'health', 'tomorrow']}
@@ -82,9 +118,11 @@ for m in MOTES: m['spr'] = mote_sprite(m['r'])
 def frame(t):
     # ---- ribbon ties itself: reveal travels along the traced path ----
     head = lerp(-150, PATH_LEN + 260, eIO3(P(t, 0.15, 2.75)) * 0.25 + eOut3(P(t, 0.15, 2.75)) * 0.75)
-    m = np.clip((head - arc_f) / 140.0, 0, 1)
-    m = m * m * (3 - 2 * m)
-    img = plate + (clean - plate) * m[..., None]
+    ms = np.clip((head - arc_s) / 220.0, 0, 1); ms = ms * ms * (3 - 2 * ms)      # shadows: soft
+    mr = np.clip((head - arc_r) / 45.0, 0, 1); mr = mr * mr * (3 - 2 * mr)        # ribbon: crisp leading edge
+    img = plate + (clean - plate) * (ms * (1 - ribA))[..., None]                     # cast shadows only
+    a = (ribA * mr)[..., None]
+    img = img * (1 - a) + RIB[..., :3] * a
     # bright leading edge — the satin catches light as it lands
     if 0.15 < t < 3.2:
         edge = np.exp(-((head - 90 - arc_f) / 110.0) ** 2) * rib * 0.30 * (1 - P(t, 2.6, 0.6))
