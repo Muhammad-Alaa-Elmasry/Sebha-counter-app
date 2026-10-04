@@ -1,0 +1,209 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#000}
+  .layer{position:absolute;inset:0;width:1920px;height:1080px}
+  #bgLight{background:#fff}
+  #grid{background:repeating-linear-gradient(102deg, rgba(11,60,183,0.045) 0 2px, transparent 2px 64px)}
+  #bgDark{background:radial-gradient(circle at 50% 50%, #0f1f6b 0%, #071037 38%, #02040f 100%)}
+  #stage{perspective:1400px}
+  #logoWrap{position:absolute;left:50%;top:50%;width:1500px;height:798px;margin:-399px 0 0 -750px;transform-style:preserve-3d}
+  #logo{width:1500px;height:798px;overflow:visible}
+</style></head>
+<body>
+<div id="bgLight" class="layer"></div>
+<div id="grid" class="layer"></div>
+<div id="bgDark" class="layer"></div>
+<canvas id="cv" class="layer" width="1920" height="1080"></canvas>
+<div id="stage" class="layer">
+  <div id="logoWrap">
+    <svg id="logo" viewBox="0 0 535.658 284.936" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+      <defs>
+        <clipPath id="cB"><rect id="cBr" x="0" y="0" width="165" height="285"/></clipPath>
+        <clipPath id="cW"><rect id="cWr" x="165" y="0" width="118" height="285"/></clipPath>
+        <clipPath id="cS"><rect id="cSr" x="283" y="0" width="260" height="285"/></clipPath>
+        <filter id="mblur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur id="mblurF" stdDeviation="0 0"/></filter>
+        <filter id="gblur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter>
+        <linearGradient id="shineG" x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+          <stop offset="0.5" stop-color="#fff" stop-opacity="0.75"/>
+          <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+        </linearGradient>
+        <mask id="logoMask" style="mask-type:alpha"><use href="#art"/></mask>
+      </defs>
+      <g id="pulse">
+      <g id="art">
+        <g id="gB"><image href="shade.png" x="0" y="0" width="535" height="284" clip-path="url(#cB)"/></g>
+        <g id="gW"><image href="shade.png" x="0" y="0" width="535" height="284" clip-path="url(#cW)"/></g>
+        <g id="gS"><g clip-path="url(#cS)"><image href="shade.png" x="0" y="0" width="535" height="284"/><path fill="#0B3CB7" d="%MID%"/></g></g>
+        <g id="gDot"><path fill="#0B3CB7" d="%DOT%"/></g>
+        <g id="gStroke" filter="url(#mblur)"><path fill="#0B3CB7" d="%STROKE%"/></g>
+        <g id="gAlef"><path fill="#0B3CB7" d="%ALEF%"/></g>
+        <g id="gHamza"><path fill="#0B3CB7" d="%HAMZA%"/></g>
+        <g id="glyphs" fill="#0B3CB7">%GLYPHS%</g>
+        <g id="gTri"><path fill="#FFAE23" d="%TRI%"/></g>
+      </g>
+      <g mask="url(#logoMask)"><rect id="shine" x="-200" y="-100" width="90" height="500" fill="url(#shineG)"/></g>
+      <g id="sparks"></g>
+      </g>
+    </svg>
+  </div>
+</div>
+<svg id="fx" class="layer" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="18"/></filter>
+    <radialGradient id="rayG"><stop offset="0" stop-color="#4f8bff" stop-opacity="0.55"/><stop offset="1" stop-color="#4f8bff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="flareG" x1="0" x2="1"><stop offset="0" stop-color="#0A9DC2" stop-opacity="0"/><stop offset="0.5" stop-color="#cfe6ff" stop-opacity="1"/><stop offset="1" stop-color="#0A9DC2" stop-opacity="0"/></linearGradient>
+  </defs>
+  <g id="rays"></g>
+  <g id="rings"></g>
+  <rect id="flare" x="0" y="538" width="0" height="4" fill="url(#flareG)"/>
+  <g id="introTri"><path id="introGlow" fill="#FFAE23" filter="url(#glow)" d="%TRI%"/><path fill="#FFAE23" d="%TRI%"/></g>
+  <g id="bands"></g>
+  <circle id="shock" cx="960" cy="540" r="0" fill="none" stroke="#0A72CC" stroke-width="3" opacity="0"/>
+  <rect id="vig" x="0" y="0" width="1920" height="1080" fill="#000" opacity="0"/>
+</svg>
+<script>
+const G = %GLYPHDATA%;
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const P=(t,a,b)=>clamp((t-a)/(b-a));
+const lerp=(a,b,p)=>a+(b-a)*p;
+const eOutC=p=>1-Math.pow(1-p,3), eInC=p=>p*p*p, eIO=p=>p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
+const eOutQ=p=>1-Math.pow(1-p,5);
+const eBack=(p,s=1.9)=>{const c=s+1;return 1+c*Math.pow(p-1,3)+s*Math.pow(p-1,2)};
+const eElastic=p=>p===0?0:p===1?1:Math.pow(2,-10*p)*Math.sin((p*10-.75)*(2*Math.PI)/3)+1;
+const eBounce=p=>{const n=7.5625,d=2.75;if(p<1/d)return n*p*p;if(p<2/d)return n*(p-=1.5/d)*p+.75;if(p<2.5/d)return n*(p-=2.25/d)*p+.9375;return n*(p-=2.625/d)*p+.984375};
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function tf(el,{dx=0,dy=0,px=0,py=0,r=0,sx=1,sy=1,o=1}){
+  el.setAttribute('transform',`translate(${dx} ${dy}) translate(${px} ${py}) rotate(${r}) scale(${sx} ${sy}) translate(${-px} ${-py})`);
+  el.setAttribute('opacity',clamp(o));
+}
+// ---------- build static fx ----------
+const R=rng(7);
+const rays=$('rays');
+for(let i=0;i<14;i++){const p=document.createElementNS(NS,'path');const a=i/14*Math.PI*2,w=0.06+R()*0.05,L=900;
+  p.setAttribute('d',`M960 540 L${960+L*Math.cos(a-w)} ${540+L*Math.sin(a-w)} L${960+L*Math.cos(a+w)} ${540+L*Math.sin(a+w)}Z`);p.setAttribute('fill','url(#rayG)');rays.appendChild(p);}
+const ringCols=['#0A35CC','#0A72CC','#0A9DC2','#4f8bff','#0A72CC','#0A9DC2'];
+const rings=[];for(let i=0;i<6;i++){const c=document.createElementNS(NS,'circle');c.setAttribute('cx',960);c.setAttribute('cy',540);c.setAttribute('fill','none');c.setAttribute('stroke',ringCols[i]);$('rings').appendChild(c);rings.push(c)}
+const bandCols=['#123EB5','#0A35CC','#0A72CC','#0A9DC2','#32284F','#123EB5'];
+const bands=bandCols.map(c=>{const p=document.createElementNS(NS,'polygon');p.setAttribute('points','-1200,-20 1500,-20 1200,1100 -1500,1100');p.setAttribute('fill',c);$('bands').appendChild(p);return p});
+const glyphs=[...$('glyphs').children];
+const gOrder=glyphs.map((g,i)=>[i,G[i][1]]).sort((a,b)=>b[1]-a[1]).map(a=>a[0]);
+const sparks=[];{const r=rng(3);for(let i=0;i<22;i++){const l=document.createElementNS(NS,'line');l.setAttribute('stroke',i%3?'#FFAE23':'#0A72CC');l.setAttribute('stroke-linecap','round');$('sparks').appendChild(l);sparks.push({el:l,a:i/22*Math.PI*2+r()*0.3,v:40+r()*55,w:1.2+r()*1.6})}}
+const sparkRing=document.createElementNS(NS,'circle');sparkRing.setAttribute('fill','none');sparkRing.setAttribute('stroke','#FFAE23');$('sparks').appendChild(sparkRing);
+// particles
+const cv=$('cv'),cx=cv.getContext('2d');
+const darkP=[],lightP=[];{const r=rng(11);
+  for(let i=0;i<170;i++)darkP.push({x:r()*1920,y:r()*1080,z:0.2+r()*0.8,s:r()*6.28,c:r()<.18?'255,174,35':(r()<.5?'79,139,255':'10,157,194')});
+  for(let i=0;i<26;i++)lightP.push({x:r()*1920,y:r()*1080,z:0.3+r()*0.7,s:r()*6.28,rot:r()*6.28,c:['10,53,204','10,114,204','10,157,194','255,174,35'][i%4],tri:i%3!==0});}
+function drawParticles(t){
+  cx.clearRect(0,0,1920,1080);
+  const dark=t<3.83;
+  if(dark){
+    const a=P(t,0,0.8);
+    for(const p of darkP){
+      const k=1+P(t,2.8,3.7)*P(t,2.8,3.7)*6*p.z; // warp toward camera
+      const x=960+(p.x-960+Math.sin(t*0.3+p.s)*30)*k, y=540+(p.y-540-t*14*p.z)*k;
+      const tw=0.5+0.5*Math.sin(t*3+p.s*5);
+      cx.fillStyle=`rgba(${p.c},${a*p.z*(0.25+0.6*tw)})`;
+      cx.beginPath();cx.arc(x,y,1+2.2*p.z*k*0.6,0,6.283);cx.fill();
+    }
+  } else {
+    const a=P(t,4.2,5.5)*(1-P(t,14.6,15))*1;
+    for(const p of lightP){
+      const x=p.x+Math.sin(t*0.4+p.s)*40, y=(p.y-t*10*p.z+1200)%1200-60;
+      const sz=8+16*p.z;
+      cx.save();cx.translate(x,y);cx.rotate(p.rot+t*0.35*(p.z-0.5));
+      cx.strokeStyle=`rgba(${p.c},${0.10*a*p.z+0.03*a})`;cx.fillStyle=cx.strokeStyle;cx.lineWidth=2;
+      if(p.tri){cx.beginPath();cx.moveTo(sz,0);cx.lineTo(-sz*.5,sz*.87);cx.lineTo(-sz*.5,-sz*.87);cx.closePath();cx.stroke()}
+      else{cx.beginPath();cx.arc(0,0,sz*.35,0,6.283);cx.fill()}
+      cx.restore();
+    }
+    // soft light leaks
+    const blob=(bx,by,r,c,al)=>{const g=cx.createRadialGradient(bx,by,0,bx,by,r);g.addColorStop(0,`rgba(${c},${al})`);g.addColorStop(1,`rgba(${c},0)`);cx.fillStyle=g;cx.fillRect(0,0,1920,1080)};
+    blob(300+Math.sin(t*.4)*120,200+Math.cos(t*.3)*80,700,'10,157,194',0.10*a);
+    blob(1650+Math.cos(t*.35)*120,900+Math.sin(t*.45)*60,650,'255,174,35',0.08*a);
+    blob(1500,120,500,'10,53,204',0.06*a);
+  }
+}
+// ---------- render ----------
+window.render=function(t){
+  drawParticles(t);
+  const SW=3.83; // scene switch (band covers screen)
+  $('bgDark').style.opacity = t<SW?1:0;
+  $('grid').style.backgroundPosition = `${-t*18}px 0`;
+  $('grid').style.opacity = t<SW?0:P(t,4.2,6);
+  // intro triangle
+  let k,r;
+  const a1=P(t,0.2,1.5), a2=P(t,2.75,3.35), a3=P(t,3.35,3.72);
+  k = 5*eBack(a1,1.6); r = lerp(-300,0,eOutQ(a1));
+  k += Math.sin(Math.max(0,t-1.5)*4.2)*0.12*P(t,1.5,1.9)*(1-a2);
+  k = lerp(k, 4.1, eIO(a2)); r += lerp(0,-18,eIO(a2));
+  k = lerp(k, 170, eInC(a3)); r = lerp(r, 25, eInC(a3));
+  const it=$('introTri'); it.style.display=(t<SW && t>0.2)?'':'none';
+  tf(it,{dx:960-196,dy:540-129,px:196,py:129,r,sx:k,sy:k});
+  $('introGlow').setAttribute('opacity', (0.6+0.4*Math.sin(t*5))*(1-a3));
+  // rays + flare
+  rays.style.display=t<SW?'':'none';
+  rays.setAttribute('opacity',P(t,1.0,2.0)*0.8*(1-P(t,3.2,3.6)));
+  rays.setAttribute('transform',`rotate(${t*14} 960 540)`);
+  const fl=eOutC(P(t,0.9,1.8))*(1-P(t,3.3,3.6));
+  $('flare').setAttribute('x',960-950*fl);$('flare').setAttribute('width',1900*fl);
+  $('flare').setAttribute('opacity',(0.55+0.3*Math.sin(t*7))*fl);
+  $('flare').style.display=t<SW?'':'none';
+  rings.forEach((c,i)=>{const p=P(t,0.5+i*0.42,2.1+i*0.42);const rr=eOutC(p)*720;c.setAttribute('r',rr);c.setAttribute('stroke-width',3*(1-p)+0.5);c.setAttribute('opacity',(p>0&&p<1&&t<SW)?(1-p)*0.85:0)});
+  // bands
+  bands.forEach((b,i)=>{const p=P(t,3.555+i*0.06,4.105+i*0.06);const x=lerp(2900,-2900,eIO(p));b.setAttribute('transform',`translate(${x} 0)`);b.style.display=(p>0&&p<1)?'':'none'});
+  // shockwave on white
+  const sp=P(t,4.0,5.0);$('shock').setAttribute('r',eOutC(sp)*1100);$('shock').setAttribute('opacity',sp>0&&sp<1?(1-sp)*0.5:0);$('shock').setAttribute('stroke-width',8*(1-sp)+1);
+
+  // ---------- logo ----------
+  const show=t>=SW; $('stage').style.display=show?'':'none';
+  // camera: 3D tilt into place, then slow push
+  const c1=eOutC(P(t,4.2,8.6)), push=eIO(P(t,8.0,15));
+  let shake=0; const sh=P(t,5.52,6.0); if(sh>0&&sh<1) shake=Math.sin(sh*40)*(1-sh)*6;
+  const pz=P(t,7.25,7.75), pulse=1+Math.sin(pz*Math.PI)*0.035*(1-pz*0.3);
+  $('logoWrap').style.transform=`translate(${shake}px,${shake*0.6}px) rotateY(${lerp(-22,0,c1)}deg) rotateX(${lerp(10,0,c1)}deg) scale(${0.86*lerp(0.9,1,c1)*lerp(1,1.06,push)*pulse})`;
+  $('logo').style.filter=`drop-shadow(0 ${lerp(30,16,c1)}px 22px rgba(11,60,183,${0.2*P(t,6.5,8.5)}))`;
+  // alef: grow up from base
+  { const p=P(t,4.35,4.95); tf($('gAlef'),{px:480,py:202,sx:lerp(0.6,1,eOutC(p)),sy:eBack(p,2.2),o:p*8}); }
+  // hamza: drop + bounce, spin
+  { const p=P(t,4.65,5.35); tf($('gHamza'),{dy:lerp(-170,0,eBounce(p)),px:497,py:66,r:lerp(-60,0,eOutC(p)),o:p*6}); }
+  // seen: RTL wipe + rise with elastic
+  { const p=P(t,4.75,5.45); const w=eOutC(p); $('cSr').setAttribute('x',lerp(460,283,w));
+    tf($('gS'),{dy:lerp(40,0,eElastic(P(t,4.75,5.6))),px:368,py:200,o:p>0?1:0}); }
+  // stroke: slice down along its slant
+  { const p=P(t,5.1,5.52); const e=eInC(p)*0.4+eOutQ(p)*0.6; const d=(1-e)*520;
+    tf($('gStroke'),{dx:0.145*d, dy:-0.989*d, o:p>0?1:0});
+    $('mblurF').setAttribute('stdDeviation',`0 ${p<1?(1-e)*26:0}`); }
+  // waw: spin in around loop
+  { const p=P(t,5.35,6.05); tf($('gW'),{px:222,py:142,r:lerp(-220,0,eOutC(p)),sx:eBack(p,1.6),sy:eBack(p,1.6),o:p*5}); }
+  // baa: RTL wipe with overshoot slide
+  { const p=P(t,5.65,6.3); const w=eOutC(p); $('cBr').setAttribute('x',lerp(165,0,w));$('cBr').setAttribute('width',165-lerp(165,0,w));
+    tf($('gB'),{dx:lerp(-30,0,eBack(p,2.4)),o:p>0?1:0}); }
+  // dot: gravity drop + squash
+  { const p=P(t,6.0,6.75); const y=lerp(-260,0,eBounce(p)); const land=P(t,6.27,6.4); const sq=Math.sin(land*Math.PI)*0.28;
+    tf($('gDot'),{dy:y,px:88.4,py:257,sx:1+sq,sy:1-sq,o:p*6}); }
+  // triangle: flies back from camera, spinning, lands
+  { const p=P(t,6.45,7.25); const e=eOutQ(p); const s=lerp(9,1,e);
+    tf($('gTri'),{dx:lerp(268-196,0,e),dy:lerp(147-129,0,e),px:196,py:129,r:lerp(360+120,0,e),sx:s,sy:s,o:P(t,6.45,6.6)});
+    // sparks
+    const q=P(t,7.2,7.9);
+    sparks.forEach(sp=>{const d0=8+eOutC(q)*sp.v, d1=8+eOutC(Math.max(0,q-0.12))*sp.v*0.85;
+      sp.el.setAttribute('x1',196+Math.cos(sp.a)*d1);sp.el.setAttribute('y1',129+Math.sin(sp.a)*d1);
+      sp.el.setAttribute('x2',196+Math.cos(sp.a)*d0);sp.el.setAttribute('y2',129+Math.sin(sp.a)*d0);
+      sp.el.setAttribute('stroke-width',sp.w*(1-q));sp.el.setAttribute('opacity',q>0&&q<1?1-q*q:0)});
+    sparkRing.setAttribute('cx',196);sparkRing.setAttribute('cy',129);sparkRing.setAttribute('r',10+eOutC(q)*60);
+    sparkRing.setAttribute('stroke-width',3*(1-q));sparkRing.setAttribute('opacity',q>0&&q<1?(1-q)*0.8:0); }
+  // subtitle glyphs RTL
+  gOrder.forEach((gi,n)=>{const p=P(t,7.4+n*0.085,7.9+n*0.085);const e=eOutC(p);
+    glyphs[gi].setAttribute('transform',`translate(0 ${lerp(14,0,e)})`);glyphs[gi].setAttribute('opacity',e)});
+  // shine sweeps
+  { const s1=P(t,9.0,10.1), s2=P(t,13.0,13.9); const s=s1>0&&s1<1?s1:s2; const x=lerp(-160,640,eIO(s));
+    $('shine').setAttribute('transform',`translate(${x} 0) rotate(18 45 150)`); $('shine').style.display=(s>0&&s<1)?'':'none'; }
+};
+window.render(0);
+</script>
+</body></html>
