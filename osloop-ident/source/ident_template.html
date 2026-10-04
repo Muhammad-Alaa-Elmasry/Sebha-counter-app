@@ -1,0 +1,188 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!--
+  OsLoop brand ident — construction from the logo's own geometry.
+  All motion is defined in LOGO UNITS (the 535.658 × 284.936 artboard of the approved PDF),
+  so the same timeline drives any frame format. Formats live in FORMATS below:
+  ?f=h  → 1920×1080 (16:9)     ?f=v → 1080×1920 (9:16)
+-->
+<style>
+  html,body{margin:0;overflow:hidden;background:#000}
+  #frame{position:relative;overflow:hidden}
+  .layer{position:absolute;inset:0;width:100%;height:100%}
+  #paper{background:#F3EFE7}
+  #grain{background-image:url(paper_grain.png);mix-blend-mode:overlay;opacity:.42}
+  #light{background:radial-gradient(ellipse 85% 75% at 92% -8%, rgba(255,253,248,.70) 0%, rgba(255,253,248,0) 62%),
+                    radial-gradient(ellipse 90% 80% at 0% 108%, rgba(96,78,48,.07) 0%, rgba(96,78,48,0) 65%)}
+  #black{background:#000}
+</style></head>
+<body>
+<div id="frame">
+  <div id="paper" class="layer"></div>
+  <div id="grain" class="layer"></div>
+  <div id="light" class="layer"></div>
+  <svg id="stage" class="layer" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <clipPath id="c_wawLoop"><path/></clipPath>
+      <clipPath id="c_wawTail"><path/></clipPath>
+      <clipPath id="c_baaBowl"><path/></clipPath>
+      <clipPath id="c_seenL"><path/></clipPath>
+      <clipPath id="c_seenR"><path/></clipPath>
+      <clipPath id="c_stroke"><path/></clipPath>
+      <clipPath id="c_alef"><path/></clipPath>
+      <clipPath id="c_hamza"><path/></clipPath>
+      <clipPath id="c_desc"><rect x="0" y="0" width="0" height="300"/></clipPath>
+    </defs>
+    <g id="logo">
+      <g id="lock">
+        <!-- draw order follows the approved artwork -->
+        <g id="g_baaBowl"><path clip-path="url(#c_baaBowl)" fill="#0B3CB7" d="%baaBowl%"/></g>
+        <g id="g_wawLoop"><path clip-path="url(#c_wawLoop)" fill="#0B3CB7" d="%wawLoop%"/></g>
+        <g id="g_wawTail"><path clip-path="url(#c_wawTail)" fill="#0B3CB7" d="%wawTail%"/></g>
+        <g id="g_seenR"><g clip-path="url(#c_seenR)"><path fill="#0B3CB7" d="%seenR%"/></g></g>
+        <g id="g_seenL"><path clip-path="url(#c_seenL)" fill="#0B3CB7" d="%seenL%"/></g>
+        <g id="shadows" opacity="0">
+          <image href="shadowW.png" x="%sWx%" y="%sWy%" width="%sWw%" height="%sWh%" preserveAspectRatio="none"/>
+          <image href="shadowS.png" x="%sSx%" y="%sSy%" width="%sSw%" height="%sSh%" preserveAspectRatio="none"/>
+        </g>
+        <g id="g_mid"><path clip-path="url(#c_seenR)" fill="#0B3CB7" d="%mid%"/></g>
+        <g id="g_dot"><path fill="#0B3CB7" d="%dot%"/></g>
+        <g id="g_desc" clip-path="url(#c_desc)"><g id="desc" fill="#0B3CB7">%GLYPHS%</g></g>
+        <g id="g_alef"><path clip-path="url(#c_alef)" fill="#0B3CB7" d="%alef%"/></g>
+        <g id="g_hamza"><path clip-path="url(#c_hamza)" fill="#0B3CB7" d="%hamza%"/></g>
+        <g id="g_stroke"><path clip-path="url(#c_stroke)" fill="#0B3CB7" d="%stroke%"/></g>
+        <g id="g_tri"><path fill="#FFAE23" d="%tri%"/></g>
+      </g>
+    </g>
+  </svg>
+  <div id="black" class="layer"></div>
+</div>
+<script>
+// ---------------- formats ----------------
+const FORMATS = {
+  h: { W: 1920, H: 1080, logoScale: 1.9,  grain: 1024 },
+  v: { W: 1080, H: 1920, logoScale: 1.66, grain: 1024 },
+  art: { W: 535.658, H: 284.936, logoScale: 1, grain: 1024, raw: true },   // 1:1 artboard, used for the integrity check
+};
+const q = new URLSearchParams(location.search);
+const F = FORMATS[q.get('f') || 'h'];
+const PX = +(q.get('px') || 1);              // preview down-scale (0.5 = half res)
+const frame = document.getElementById('frame');
+frame.style.width = F.W * PX + 'px'; frame.style.height = F.H * PX + 'px';
+const stage = document.getElementById('stage');
+stage.setAttribute('viewBox', `0 0 ${F.W} ${F.H}`);
+document.getElementById('grain').style.backgroundSize = `${F.grain * PX}px`;
+
+// logo placement: centre of the full lock-up (wordmark + descriptor) at frame centre
+const LC = [268.45, 147.25];                 // centre of artwork bbox x 18.6–518.3, y 35.2–259.7
+const S = F.logoScale;
+const OX = F.raw ? 0 : F.W / 2 - LC[0] * S, OY = F.raw ? 0 : F.H / 2 - LC[1] * S;
+if (F.raw) ['paper', 'grain', 'light'].forEach(id => document.getElementById(id).style.background = '#fff');
+
+// ---------------- timing helpers ----------------
+const $ = id => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const P = (t, a, d) => clamp((t - a) / d);
+const lerp = (a, b, p) => a + (b - a) * p;
+function bezier(x1, y1, x2, y2) {            // CSS cubic-bezier
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = s => ((ax * s + bx) * s + cx) * s, Y = s => ((ay * s + by) * s + cy) * s;
+  const dX = s => (3 * ax * s + 2 * bx) * s + cx;
+  return x => { if (x <= 0) return 0; if (x >= 1) return 1; let s = x;
+    for (let i = 0; i < 8; i++) { const e = X(s) - x; const d = dX(s); if (Math.abs(e) < 1e-6 || !d) break; s -= e / d; }
+    return Y(clamp(s)); };
+}
+const EASE_LAND = bezier(0.16, 1, 0.3, 1);   // registration: near-instant, long precise settle
+const EASE_ARRIVE = bezier(0.25, 0, 0, 1);   // short acceleration, strong ease-out
+const EASE_TRAVEL = bezier(0.55, 0, 0.1, 1); // triangle relocation
+
+// ---------------- masks (all in logo units) ----------------
+function wedge(cx, cy, a0, sweep, R = 400) {          // pie slice, angles in degrees, y-down
+  if (sweep <= 0.01) return 'M0 0Z';
+  const n = Math.max(2, Math.ceil(Math.abs(sweep) / 6)); let d = `M${cx} ${cy}`;
+  for (let i = 0; i <= n; i++) { const a = (a0 + sweep * i / n) * Math.PI / 180; d += ` L${cx + R * Math.cos(a)} ${cy + R * Math.sin(a)}`; }
+  return d + 'Z';
+}
+function halfPlane(o, u, dist, R = 600) {             // region whose projection on u from o is <= dist
+  const px = -u[1], py = u[0];
+  const fx = o[0] + u[0] * dist, fy = o[1] + u[1] * dist;
+  const bx = o[0] - u[0] * R, by = o[1] - u[1] * R;
+  return `M${fx + px * R} ${fy + py * R} L${fx - px * R} ${fy - py * R} L${bx - px * R} ${by - py * R} L${bx + px * R} ${by + py * R}Z`;
+}
+const unit = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy); return [[dx / l, dy / l], l]; };
+
+// ---------------- construction score ----------------
+// circle → blade → cup → cup → circle → cup → blade → blade → blade(lock)
+// Each part travels a short direct path and is drawn by a mask derived from its own geometry.
+function axisPart(id, from, to, t0, dur, travel) {
+  const [u, len] = unit(from, to);
+  return { id, t0, dur, mask: p => halfPlane(from, u, -4 + p * (len + 8)), move: e => [-u[0] * travel * (1 - e), -u[1] * travel * (1 - e)] };
+}
+const PARTS = [
+  { id: 'wawLoop', t0: 1.36, dur: 0.36, mask: p => wedge(213.5, 139.5, -150, 360 * p), move: () => [0, 0] },
+  axisPart('stroke', [277, 33], [253, 187], 1.54, 0.30, 22),
+  { id: 'baaBowl', t0: 1.70, dur: 0.32, mask: p => `M${lerp(162, 14, p)} 140 H170 V215 H${lerp(162, 14, p)}Z`, move: e => [16 * (1 - e), 0] },
+  { id: 'seenL', t0: 1.86, dur: 0.32, mask: p => wedge(333.4, 153.8, -2, 184 * p), move: e => [-14 * (1 - e), 0] },
+  { id: 'dot', t0: 2.02, dur: 0.28, scale: true, move: e => [0, -12 * (1 - e)] },
+  { id: 'seenR', t0: 2.16, dur: 0.32, mask: p => wedge(401.6, 153.8, -2, 184 * p), move: e => [-14 * (1 - e), 0] },
+  axisPart('alef', [465, 204], [510, 74], 2.34, 0.30, 20),
+  axisPart('hamza', [476, 99], [519, 34], 2.50, 0.26, 14),
+  axisPart('wawTail', [272, 108], [229, 262], 2.72, 0.30, 24),
+];
+const T_LOCK = 3.04;                          // last part seated → wordmark lock
+const TRI_C = [194.8, 124.9], TRI_K0 = 1.8;
+
+window.render = function (t) {
+  $('black').style.display = t < 0.45 ? '' : 'none';
+  // living light: < 1 % drift
+  $('light').style.opacity = 1 - 0.008 * (0.5 + 0.5 * Math.sin(t * 0.7));
+
+  // global registration compression at lock (≈1.4 px at the wordmark edges), 5 frames
+  const c = P(t, T_LOCK, 5 / 60), comp = 1 - 0.003 * Math.sin(Math.PI * c);
+  $('logo').setAttribute('transform', `translate(${OX} ${OY}) scale(${S})`);
+  $('lock').setAttribute('transform', `translate(${LC[0]} ${LC[1]}) scale(${comp}) translate(${-LC[0]} ${-LC[1]})`);
+
+  // triangle: registration at centre, then relocation into the wordmark
+  const tri = $('g_tri');
+  if (t < 0.45) tri.style.display = 'none';
+  else {
+    tri.style.display = '';
+    const e1 = EASE_LAND(P(t, 0.45, 0.22));
+    const e2 = EASE_TRAVEL(P(t, 1.20, 0.34));
+    const k = TRI_K0 * lerp(0.92, 1, e1) * lerp(1, 1 / TRI_K0, e2);
+    const rot = lerp(3, 0, e1);
+    const cx = lerp(LC[0], TRI_C[0], e2), cy = lerp(LC[1], TRI_C[1], e2);
+    tri.setAttribute('transform', `translate(${cx} ${cy}) rotate(${rot}) scale(${k}) translate(${-TRI_C[0]} ${-TRI_C[1]})`);
+  }
+
+  for (const pt of PARTS) {
+    const p = P(t, pt.t0, pt.dur), e = EASE_ARRIVE(p);
+    const g = $('g_' + pt.id);
+    g.style.display = p <= 0 ? 'none' : '';
+    const [dx, dy] = pt.move(e);
+    if (pt.scale) {                           // circle: grows from its own centre
+      const s = lerp(0, 1, e), C = [88.4, 237.25];
+      g.setAttribute('transform', `translate(${dx} ${dy}) translate(${C[0]} ${C[1]}) scale(${s}) translate(${-C[0]} ${-C[1]})`);
+    } else {
+      g.setAttribute('transform', `translate(${dx} ${dy})`);
+      const mp = EASE_ARRIVE(clamp(p * 1.18));   // mask completes slightly before travel settles
+      document.querySelector(`#c_${pt.id} path`).setAttribute('d', p >= 1 ? 'M-1000 -1000H2000V2000H-1000Z' : pt.mask(mp));
+    }
+    if (pt.id === 'seenR') $('g_mid').style.display = g.style.display, $('g_mid').setAttribute('transform', g.getAttribute('transform'));
+  }
+
+  // contact shadows register as the parts seat (6 frames)
+  $('shadows').setAttribute('opacity', P(t, T_LOCK - 0.02, 6 / 60));
+
+  // descriptor: right-to-left mask + 5 px rise, 15 frames
+  const d = EASE_ARRIVE(P(t, 3.62, 15 / 60));
+  const r = $('c_desc').firstElementChild;
+  const x1 = 488, x0 = 284;
+  r.setAttribute('x', lerp(x1, x0, d)); r.setAttribute('width', (x1 - lerp(x1, x0, d)) + 2);
+  $('desc').setAttribute('transform', `translate(0 ${(1 - d) * 5 / S})`);
+  $('g_desc').style.display = d > 0 ? '' : 'none';
+};
+window.render(+(q.get('t') ?? 99));
+</script>
+</body></html>
